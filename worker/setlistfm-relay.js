@@ -31,6 +31,9 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/(api\/)?/, '');
+    if (path === 'health' || path === '') {
+      return json({ ok: true, service: 'concert-porter-relay' }, 200);
+    }
     if (!ALLOWED.test(path)) {
       return json({ error: 'endpoint not allowed', path }, 400);
     }

@@ -34,6 +34,13 @@
   h1 .arrow { color: var(--accent); }
   .sub { color: var(--muted); margin: 0 0 30px; font-size: 1.05rem; }
 
+  .live {
+    display: inline-block; border-radius: 20px; padding: 5px 16px;
+    font-size: .88rem; font-weight: 600; margin: -16px 0 24px;
+  }
+  .live.on { background: rgba(29,122,62,.12); color: var(--ok); border: 1px solid rgba(29,122,62,.3); }
+  .live.off { background: rgba(176,106,0,.12); color: var(--warn); border: 1px solid rgba(176,106,0,.3); }
+
   /* stepper */
   .steps { display: flex; gap: 0; list-style: none; padding: 0; margin: 0 0 26px; }
   .steps li {
@@ -152,6 +159,7 @@
 <div class="wrap">
   <h1>CONCERT PORTER <span class="arrow">→</span></h1>
   <p class="sub">Bring your concert history from <b>Concert Archives</b> over to <b>What I've Heard</b>. Three steps, a few minutes, nothing technical.</p>
+  <div id="liveStatus" class="live hidden"></div>
 
   <ol class="steps" id="stepper">
     <li data-s="1" class="now"><span class="n">1</span>Get your list</li>
@@ -380,11 +388,36 @@ function loadSettings() {
   } catch (e) {}
 }
 loadSettings();
-$('proxyUrl').addEventListener('change', saveSettings);
+$('proxyUrl').addEventListener('change', () => { saveSettings(); checkLive(); });
 $('apiKey').addEventListener('change', saveSettings);
 function maybeWarnSetup() {
   $('setupWarn').classList.toggle('hidden', !!relayUrl());
 }
+
+/* ---------- live / not-live status ---------- */
+async function checkLive() {
+  const el = $('liveStatus');
+  el.classList.remove('hidden', 'on', 'off');
+  const base = relayUrl();
+  if (!base) {
+    el.classList.add('off');
+    el.textContent = "🚧 Preview only for now — the matching engine isn't hooked up yet, so Step 2 won't run. Check back soon!";
+    return;
+  }
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    const r = await fetch(base + '/health', { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) throw new Error();
+    el.classList.add('on');
+    el.textContent = '● Live — ready to port your shows.';
+  } catch (e) {
+    el.classList.add('off');
+    el.textContent = "⚠ The matching engine isn't answering right now, so matching may not work. Try again in a little while.";
+  }
+}
+checkLive();
 
 /* ---------- file intake ---------- */
 const drop = $('drop');
