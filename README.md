@@ -33,9 +33,12 @@ flow through everywhere.
 
 The app is a single static page — no build, no dependencies:
 
-- open `index.html` straight from disk, or
-- serve the folder (`python3 -m http.server`), or
+- serve the folder locally (`python3 -m http.server`), or
 - deploy it anywhere static (GitHub Pages, Cloudflare Pages).
+
+(The relay only answers browsers on its allowlisted origins plus
+localhost — see `ALLOWED_ORIGINS` in `worker/setlistfm-relay.js` — so
+run it via localhost rather than opening `index.html` from disk.)
 
 ### The relay (required once)
 
