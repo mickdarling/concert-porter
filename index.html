@@ -622,7 +622,7 @@ $('matchBtn').onclick = async () => {
     done++;
     $('bar').style.width = (100 * done / matchResults.length).toFixed(1) + '%';
     refreshCounts();
-    await sleep(650);  // stay well inside setlist.fm free-tier rate limits
+    await sleep(700);  // stays inside both the relay's per-IP limit and setlist.fm's free tier
   }
   const finished = !matchResults.some(r => r.status === 'pending');
   if (finished) $('matchStatus').textContent = 'All done ✓';

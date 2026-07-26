@@ -65,6 +65,19 @@ export default {
       return json({ error: 'endpoint not allowed', path }, 400, cors);
     }
 
+    // Rate limits (checked before touching setlist.fm, so a hammering
+    // caller never consumes upstream quota): per-IP first, then a global
+    // ceiling that keeps total traffic inside the API key's allowance.
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    if (env.RL_IP) {
+      const { success } = await env.RL_IP.limit({ key: ip });
+      if (!success) return json({ error: 'rate limited — slow down and retry' }, 429, cors);
+    }
+    if (env.RL_GLOBAL) {
+      const { success } = await env.RL_GLOBAL.limit({ key: 'global' });
+      if (!success) return json({ error: 'rate limited — relay is at capacity, retry shortly' }, 429, cors);
+    }
+
     const apiKey = request.headers.get('x-api-key') || env.SETLISTFM_API_KEY;
     if (!apiKey) {
       return json({ error: 'no API key: send x-api-key or set SETLISTFM_API_KEY secret' }, 401, cors);
