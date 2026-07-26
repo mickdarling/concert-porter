@@ -1,0 +1,8 @@
+{
+  // Deploy: wrangler deploy
+  // Then:   wrangler secret put SETLISTFM_API_KEY   (optional — callers can bring their own key)
+  "name": "concert-porter-relay",
+  "main": "setlistfm-relay.js",
+  "compatibility_date": "2026-07-01",
+  "observability": { "enabled": true }
+}
