@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Concert Porter — Concert Archives → What I've Heard</title>
+<title>Concert Porter — bring your Concert Archives shows to What I've Heard</title>
 <style>
   :root {
     --bg: #f6f1e7;
@@ -27,141 +27,235 @@
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
-    font: 16px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    font: 17px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
-  h1 { font-size: 1.7rem; margin: 0 0 4px; letter-spacing: .5px; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 36px 20px 80px; }
+  h1 { font-size: 1.8rem; margin: 0 0 6px; letter-spacing: .5px; }
   h1 .arrow { color: var(--accent); }
-  .sub { color: var(--muted); margin: 0 0 28px; }
+  .sub { color: var(--muted); margin: 0 0 30px; font-size: 1.05rem; }
+
+  /* stepper */
+  .steps { display: flex; gap: 0; list-style: none; padding: 0; margin: 0 0 26px; }
+  .steps li {
+    flex: 1; text-align: center; font-size: .82rem; color: var(--muted);
+    padding-bottom: 10px; border-bottom: 3px solid var(--line); position: relative;
+  }
+  .steps li.now { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+  .steps li.done { color: var(--ok); border-bottom-color: var(--ok); }
+  .steps li .n {
+    display: inline-block; width: 22px; height: 22px; line-height: 22px; border-radius: 50%;
+    background: var(--line); color: var(--ink); font-size: .75rem; margin-right: 6px;
+  }
+  .steps li.now .n { background: var(--accent); color: var(--accent-ink); }
+  .steps li.done .n { background: var(--ok); color: #fff; }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadein .25s; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
   .card {
-    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-    padding: 22px 24px; margin-bottom: 20px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 26px 28px; margin-bottom: 18px;
   }
-  .card h2 { margin: 0 0 4px; font-size: 1.12rem; }
-  .card h2 .step { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 8px; }
-  .hint { color: var(--muted); font-size: .92rem; margin: 2px 0 14px; }
+  .card h2 { margin: 0 0 6px; font-size: 1.35rem; }
+  .lead { color: var(--muted); margin: 0 0 18px; }
+
+  /* friendly numbered mini-steps */
+  .mini { list-style: none; padding: 0; margin: 0 0 20px; }
+  .mini li { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+  .mini .dot {
+    flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--accent);
+    color: var(--accent-ink); text-align: center; line-height: 30px; font-weight: 700;
+  }
+  .mini b { display: block; }
+  .mini span { color: var(--muted); font-size: .95rem; }
+
   .drop {
-    border: 2px dashed var(--line); border-radius: 10px; padding: 34px 20px;
-    text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s;
+    display: block; margin-top: 6px;
+    border: 2.5px dashed var(--accent); border-radius: 12px; padding: 42px 20px;
+    text-align: center; cursor: pointer; transition: background .15s;
+    font-size: 1.1rem; background: rgba(140,29,47,.04);
   }
-  .drop.armed { border-color: var(--accent); background: rgba(140,29,47,.05); }
+  .drop:hover, .drop.armed { background: rgba(140,29,47,.10); }
   .drop input { display: none; }
+  .drop .big { display: block; font-size: 2rem; margin-bottom: 6px; }
+
+  .banner {
+    border-radius: 10px; padding: 14px 18px; margin-top: 16px; font-size: 1rem;
+  }
+  .banner.good { background: rgba(29,122,62,.1); color: var(--ok); border: 1px solid rgba(29,122,62,.3); }
+  .banner.info { background: rgba(176,106,0,.08); color: var(--warn); border: 1px solid rgba(176,106,0,.3); }
+
+  button.primary, a.btn {
+    display: inline-block; background: var(--accent); color: var(--accent-ink);
+    border: 0; border-radius: 10px; padding: 15px 30px; font-size: 1.12rem; font-weight: 600;
+    cursor: pointer; text-decoration: none; margin-top: 16px;
+  }
+  button.primary:disabled { opacity: .45; cursor: default; }
+  button.primary.pulse { animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(140,29,47,.35);} 50% { box-shadow: 0 0 0 10px rgba(140,29,47,0);} }
+  button.ghost {
+    background: none; border: 1px solid var(--line); color: var(--ink);
+    border-radius: 8px; padding: 8px 16px; cursor: pointer; margin-top: 8px; font-size: .92rem;
+  }
+  .backlink { display: inline-block; margin-top: 18px; color: var(--muted); font-size: .9rem; cursor: pointer; text-decoration: underline; background:none; border:none; padding:0; }
+
+  details { margin-top: 16px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .95rem; }
+  details[open] summary { margin-bottom: 10px; }
+
   label.fld { display: block; font-size: .85rem; color: var(--muted); margin: 12px 0 4px; }
   select, input[type=text], input[type=password] {
     width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
     background: var(--bg); color: var(--ink); font-size: .95rem;
   }
   .row { display: flex; gap: 14px; flex-wrap: wrap; }
-  .row > div { flex: 1 1 180px; }
-  button.primary, a.btn {
-    display: inline-block; background: var(--accent); color: var(--accent-ink);
-    border: 0; border-radius: 8px; padding: 11px 22px; font-size: 1rem; cursor: pointer;
-    text-decoration: none; margin-top: 14px;
-  }
-  button.primary:disabled { opacity: .45; cursor: default; }
-  button.ghost {
-    background: none; border: 1px solid var(--line); color: var(--ink);
-    border-radius: 8px; padding: 8px 16px; cursor: pointer; margin-top: 8px;
-  }
-  .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .95rem; }
+  .row > div { flex: 1 1 160px; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .92rem; }
   .check input { width: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: .88rem; margin-top: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; margin-top: 10px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
-  .scrollbox { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px; }
+  th { color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  .scrollbox { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 10px; }
   .scrollbox table { margin: 0; }
-  .tag { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: .74rem; font-weight: 600; }
   .tag.ok { background: rgba(29,122,62,.12); color: var(--ok); }
   .tag.warn { background: rgba(176,106,0,.14); color: var(--warn); }
   .tag.bad { background: rgba(163,36,47,.12); color: var(--bad); }
-  .progress { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 14px; }
+
+  .progress { height: 14px; background: var(--line); border-radius: 8px; overflow: hidden; margin-top: 18px; }
   .progress > div { height: 100%; width: 0%; background: var(--accent); transition: width .2s; }
-  .stats { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
-  .stats b { font-size: 1.3rem; display: block; }
-  .stats span { color: var(--muted); font-size: .8rem; }
+  .status { font-size: .95rem; color: var(--muted); margin-top: 10px; min-height: 1.3em; }
+  .stats { display: flex; gap: 26px; margin-top: 16px; flex-wrap: wrap; }
+  .stats b { font-size: 1.6rem; display: block; }
+  .stats span { color: var(--muted); font-size: .82rem; }
+
+  .pickcard {
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-top: 12px;
+  }
+  .pickcard label { display: block; padding: 5px 0; font-size: .95rem; cursor: pointer; }
+  .pickcard .you { color: var(--muted); font-size: .88rem; }
+
+  .readycount { font-size: 2.2rem; font-weight: 700; color: var(--ok); margin: 4px 0 2px; }
   pre.snippet {
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
-    padding: 12px; font-family: var(--mono); font-size: .78rem;
-    white-space: pre-wrap; word-break: break-all; max-height: 180px; overflow: auto;
+    padding: 12px; font-family: var(--mono); font-size: .74rem;
+    white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow: auto;
   }
-  .status { font-family: var(--mono); font-size: .82rem; color: var(--muted); margin-top: 8px; min-height: 1.2em; }
-  .pill-radio label { display: block; padding: 4px 0; font-size: .88rem; cursor: pointer; }
-  .hidden { display: none; }
-  footer { color: var(--muted); font-size: .8rem; margin-top: 40px; }
+  .hidden { display: none !important; }
+  footer { color: var(--muted); font-size: .8rem; margin-top: 44px; }
   footer a { color: inherit; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>CONCERT PORTER <span class="arrow">→</span></h1>
-  <p class="sub">Port your <b>Concert Archives</b> history into <b>What I've Heard</b> — matched through the setlist.fm archive, injected without a single click-through.</p>
+  <p class="sub">Bring your concert history from <b>Concert Archives</b> over to <b>What I've Heard</b>. Three steps, a few minutes, nothing technical.</p>
 
-  <!-- STEP 1 — CSV -->
-  <div class="card" id="card1">
-    <h2><span class="step">1</span>Your Concert Archives export</h2>
-    <p class="hint">On concertarchives.org, open your user menu → <b>Export To Spreadsheet</b>. The CSV arrives by email. Drop it here.</p>
-    <label class="drop" id="drop">
-      <span id="dropLabel">Drop your CSV here, or click to choose a file</span>
-      <input type="file" id="file" accept=".csv,text/csv">
-    </label>
-    <div id="mapping" class="hidden">
-      <div class="row">
-        <div><label class="fld">Date column</label><select id="colDate"></select></div>
-        <div><label class="fld">Artist column</label><select id="colArtist"></select></div>
-        <div><label class="fld">Venue column</label><select id="colVenue"></select></div>
-        <div><label class="fld">City / location column</label><select id="colCity"></select></div>
+  <ol class="steps" id="stepper">
+    <li data-s="1" class="now"><span class="n">1</span>Get your list</li>
+    <li data-s="2"><span class="n">2</span>Match it</li>
+    <li data-s="3"><span class="n">3</span>Carry it over</li>
+  </ol>
+
+  <!-- ================= STEP 1 ================= -->
+  <div class="panel active" id="panel1">
+    <div class="card">
+      <h2>Get your concert list</h2>
+      <p class="lead">Concert Archives will email you a file with all your shows. Here's how to get it:</p>
+      <ol class="mini">
+        <li><span class="dot">1</span><div><b>Open <a href="https://www.concertarchives.org" target="_blank" rel="noopener">concertarchives.org</a> and sign in.</b><span>Same account you've always used.</span></div></li>
+        <li><span class="dot">2</span><div><b>Click your name (top right), then “Export To Spreadsheet.”</b><span>One click — that's the whole export.</span></div></li>
+        <li><span class="dot">3</span><div><b>Check your email and download the file.</b><span>It usually arrives within a couple of minutes. It's a “.csv” file.</span></div></li>
+      </ol>
+      <label class="drop" id="drop">
+        <span class="big">🎟️</span>
+        <span id="dropLabel"><b>Drop that file here</b> — or click to choose it</span>
+        <input type="file" id="file" accept=".csv,text/csv">
+      </label>
+      <div class="banner good hidden" id="parseOk"></div>
+      <div class="banner info hidden" id="parseBad"></div>
+      <details id="mappingDetails" class="hidden">
+        <summary>Something look off? Check which columns we're reading</summary>
+        <div class="row">
+          <div><label class="fld">Date column</label><select id="colDate"></select></div>
+          <div><label class="fld">Artist column</label><select id="colArtist"></select></div>
+          <div><label class="fld">Venue column</label><select id="colVenue"></select></div>
+          <div><label class="fld">City / location column</label><select id="colCity"></select></div>
+        </div>
+        <div class="check"><input type="checkbox" id="allArtists"><label for="allArtists">Also count opening acts, not just the headliner</label></div>
+        <div class="scrollbox"><table id="preview"></table></div>
+      </details>
+      <button class="primary pulse hidden" id="toStep2">Looks right — continue →</button>
+    </div>
+  </div>
+
+  <!-- ================= STEP 2 ================= -->
+  <div class="panel" id="panel2">
+    <div class="card">
+      <h2>Match your shows to the archive</h2>
+      <p class="lead">We'll look up each night, one by one, in the big fan-run concert archive that What I've Heard is built on. About a second per show — a long history takes a few minutes. You can pause anytime; it remembers where it left off.</p>
+      <div class="banner info hidden" id="setupWarn">This copy of Concert Porter isn't connected to the archive yet. If you run this site, open “Connection settings” at the bottom of the page.</div>
+      <button class="primary pulse" id="matchBtn">Match my shows</button>
+      <button class="ghost" id="stopBtn" style="display:none">Pause</button>
+      <div class="progress"><div id="bar"></div></div>
+      <div class="status" id="matchStatus"></div>
+      <div class="stats">
+        <div><b id="nMatched">0</b><span>found in the archive</span></div>
+        <div><b id="nAmbig">0</b><span>need your pick</span></div>
+        <div><b id="nMissing">0</b><span>not in the archive</span></div>
       </div>
-      <div class="check"><input type="checkbox" id="allArtists"><label for="allArtists">Match every artist on the bill (openers too), not just the first listed</label></div>
-      <div class="scrollbox"><table id="preview"></table></div>
-      <div class="status" id="parseStatus"></div>
+      <div id="ambigBox"></div>
+      <details class="hidden" id="resultsDetails">
+        <summary>See the full list, show by show</summary>
+        <div class="scrollbox"><table id="results"></table></div>
+      </details>
+      <button class="primary pulse hidden" id="toStep3">Continue — carry them over →</button>
+      <br><button class="backlink" data-goto="1">← Back to your file</button>
     </div>
   </div>
 
-  <!-- STEP 2 — API access -->
-  <div class="card" id="card2">
-    <h2><span class="step">2</span>setlist.fm access</h2>
-    <p class="hint">The setlist.fm API doesn't allow direct browser calls, so requests go through a small relay. Use the default relay, or your own (see the repo's <code>worker/</code> folder). An <a href="https://www.setlist.fm/settings/api" target="_blank" rel="noopener">API key</a> is free — if the relay has its own key you can leave yours blank.</p>
-    <div class="row">
-      <div><label class="fld">Relay (proxy) URL</label><input type="text" id="proxyUrl" placeholder="https://your-worker.example.workers.dev/api"></div>
-      <div><label class="fld">Your setlist.fm API key (optional if relay has one)</label><input type="password" id="apiKey" placeholder="xxxxxxxx-xxxx-…"></div>
+  <!-- ================= STEP 3 ================= -->
+  <div class="panel" id="panel3">
+    <div class="card">
+      <h2>Carry them into What I've Heard</h2>
+      <div class="readycount" id="readyCount">0 shows ready</div>
+      <p class="lead">One last move. It's a drag-and-drop — easiest on a computer:</p>
+      <ol class="mini">
+        <li><span class="dot">1</span><div><b>Make sure your bookmarks bar is showing.</b><span>Mac: press <b>⌘⇧B</b> &nbsp;·&nbsp; Windows: <b>Ctrl+Shift+B</b></span></div></li>
+        <li><span class="dot">2</span><div><b>Drag this button up onto the bookmarks bar:</b><span style="display:block;margin-top:8px"><a class="btn" id="bookmarklet" href="#" onclick="return false" style="margin-top:0">🎫 Import my shows</a></span></div></li>
+        <li><span class="dot">3</span><div><b>Open <a href="https://whativeheard.com" target="_blank" rel="noopener">whativeheard.com</a> and click that new bookmark.</b><span>A little message tells you how many shows came across, the page refreshes, and there they are — all ticked.</span></div></li>
+      </ol>
+      <p class="lead" style="margin-top:6px">It only <b>adds</b> — anything you'd already ticked stays put, and you can untick any show on the site if something's wrong. Sign in on What I've Heard afterwards and your history follows you to your phone and other computers.</p>
+      <details id="missingDetails" class="hidden">
+        <summary id="missingSummary"></summary>
+        <p class="lead">The archive only knows shows that fans have logged on <a href="https://www.setlist.fm" target="_blank" rel="noopener">setlist.fm</a>. These nights aren't there yet, so they can't come across. You can download the list — and if you add those shows on setlist.fm, they'll appear in What I've Heard for everyone.</p>
+        <button class="ghost" id="dlUnmatched">Download the list</button>
+      </details>
+      <details>
+        <summary>Prefer another way? (paste-in method, or save the data as a file)</summary>
+        <p class="lead">On whativeheard.com, open the browser console (Mac: <b>⌥⌘J</b> in Chrome) and paste this:</p>
+        <pre class="snippet" id="snippet"></pre>
+        <button class="ghost" id="copyBtn">Copy it</button>
+        <button class="ghost" id="dlPayload">Save as a file instead</button>
+      </details>
+      <br><button class="backlink" data-goto="2">← Back to matching</button>
     </div>
-  </div>
-
-  <!-- STEP 3 — Match -->
-  <div class="card" id="card3">
-    <h2><span class="step">3</span>Match your shows</h2>
-    <p class="hint">Each show is looked up on setlist.fm by artist + date, then scored against your venue and city. Lookups are throttled to respect setlist.fm's rate limits and cached locally, so you can stop and resume.</p>
-    <button class="primary" id="matchBtn" disabled>Match shows</button>
-    <button class="ghost" id="stopBtn" style="display:none">Pause</button>
-    <button class="ghost" id="clearCacheBtn" title="Forget cached setlist.fm responses">Clear lookup cache</button>
-    <div class="progress"><div id="bar"></div></div>
-    <div class="status" id="matchStatus"></div>
-    <div class="stats">
-      <div><b id="nMatched">0</b><span>matched</span></div>
-      <div><b id="nAmbig">0</b><span>need a decision</span></div>
-      <div><b id="nMissing">0</b><span>not on setlist.fm</span></div>
-    </div>
-    <div id="ambigBox"></div>
-    <div class="scrollbox hidden" id="resultsBox"><table id="results"></table></div>
-  </div>
-
-  <!-- STEP 4 — Deliver -->
-  <div class="card" id="card4">
-    <h2><span class="step">4</span>Carry it into What I've Heard</h2>
-    <p class="hint">Your ticks live in <i>your</i> browser on whativeheard.com. Two ways to plant them — the bookmarklet is easiest:</p>
-    <p><b>A. Bookmarklet.</b> Drag this link to your bookmarks bar, open <a href="https://whativeheard.com" target="_blank" rel="noopener">whativeheard.com</a>, then click the bookmark:</p>
-    <p><a class="btn" id="bookmarklet" href="#" onclick="return false">🎫 Import my shows</a></p>
-    <p><b>B. Console snippet.</b> On whativeheard.com press <code>⌥⌘J</code> (Chrome) and paste:</p>
-    <pre class="snippet" id="snippet">Match some shows first — the snippet appears here.</pre>
-    <button class="ghost" id="copyBtn">Copy snippet</button>
-    <button class="ghost" id="dlPayload">Download payload JSON</button>
-    <button class="ghost" id="dlUnmatched">Download unmatched CSV</button>
-    <p class="hint" style="margin-top:14px">Both routes <b>merge</b> with anything already ticked — nothing gets overwritten. Sign in on whativeheard.com afterwards and the history syncs to your other devices. Shows setlist.fm doesn't know about can't be ported — add them on setlist.fm and they'll flow through everywhere.</p>
   </div>
 
   <footer>
-    An independent helper tool. Not affiliated with Concert Archives, What I've Heard, or setlist.fm.
-    Concert data is read live from the setlist.fm API under their terms; nothing you upload leaves your browser except the artist + date lookups.
+    An independent helper tool — not affiliated with Concert Archives, What I've Heard, or setlist.fm.
+    Your file never leaves your browser; only band names and dates are sent out to look shows up.
+    <details>
+      <summary>Connection settings (for whoever runs this site)</summary>
+      <div class="row">
+        <div><label class="fld">Relay URL</label><input type="text" id="proxyUrl" placeholder="https://your-worker.example.workers.dev/api"></div>
+        <div><label class="fld">setlist.fm API key (optional if the relay has one)</label><input type="password" id="apiKey" placeholder="xxxxxxxx-…"></div>
+      </div>
+      <button class="ghost" id="clearCacheBtn">Clear lookup cache</button>
+      <p>The relay is a tiny Cloudflare Worker (see the <code>worker/</code> folder in the repo) that forwards read-only lookups to the setlist.fm API, which doesn't allow direct browser calls. Bake its URL into <code>DEFAULT_RELAY</code> in this file when deploying.</p>
+    </details>
   </footer>
 </div>
 
@@ -174,6 +268,10 @@
    for whativeheard.com (seen:attended:v1 / seen:tickmeta:v1).
    ============================================================ */
 
+// Site operators: set this to your deployed worker/ relay URL and
+// end users will never see a settings field.
+const DEFAULT_RELAY = '';
+
 const $ = id => document.getElementById(id);
 const CACHE_KEY = 'cp:cache:v2';
 const SETTINGS_KEY = 'cp:settings:v1';
@@ -183,6 +281,20 @@ let headers = [];
 let shows = [];         // normalized {artist, dateISO, dateApi, venue, city, rowIdx}
 let matchResults = [];  // {show, status: 'matched'|'ambiguous'|'missing'|'pending', pick, candidates}
 let running = false;
+
+/* ---------- wizard ---------- */
+function gotoStep(n) {
+  for (let i = 1; i <= 3; i++) $('panel' + i).classList.toggle('active', i === n);
+  document.querySelectorAll('#stepper li').forEach(li => {
+    const s = +li.dataset.s;
+    li.classList.toggle('now', s === n);
+    li.classList.toggle('done', s < n);
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.querySelectorAll('.backlink').forEach(b => b.onclick = () => gotoStep(+b.dataset.goto));
+$('toStep2').onclick = () => { gotoStep(2); maybeWarnSetup(); };
+$('toStep3').onclick = () => gotoStep(3);
 
 /* ---------- tiny CSV parser (quotes, embedded commas/newlines) ---------- */
 function parseCSV(text) {
@@ -251,7 +363,10 @@ function scoreCandidate(show, sl) {
   return score;
 }
 
-/* ---------- settings persistence ---------- */
+/* ---------- settings ---------- */
+function relayUrl() {
+  return ($('proxyUrl').value.trim() || DEFAULT_RELAY).replace(/\/$/, '');
+}
 function saveSettings() {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({
     proxy: $('proxyUrl').value.trim(), key: $('apiKey').value.trim()
@@ -267,6 +382,9 @@ function loadSettings() {
 loadSettings();
 $('proxyUrl').addEventListener('change', saveSettings);
 $('apiKey').addEventListener('change', saveSettings);
+function maybeWarnSetup() {
+  $('setupWarn').classList.toggle('hidden', !!relayUrl());
+}
 
 /* ---------- file intake ---------- */
 const drop = $('drop');
@@ -282,12 +400,19 @@ function readFile(f) {
   const r = new FileReader();
   r.onload = () => {
     const table = parseCSV(r.result);
-    if (table.length < 2) { $('parseStatus').textContent = 'Could not find rows in that file.'; return; }
+    if (table.length < 2) {
+      $('parseBad').textContent = "Hmm — we couldn't read any shows in that file. Make sure it's the emailed export from Concert Archives (a .csv file), and try again.";
+      $('parseBad').classList.remove('hidden');
+      $('parseOk').classList.add('hidden');
+      return;
+    }
+    $('parseBad').classList.add('hidden');
     headers = table[0].map(h => h.trim());
     rows = table.slice(1).map(cells => {
       const o = {}; headers.forEach((h, i) => o[h] = (cells[i] || '').trim()); return o;
     });
-    $('dropLabel').textContent = `${f.name} — ${rows.length} rows`;
+    $('dropLabel').innerHTML = `<b>${esc(f.name)}</b> — got it ✓ &nbsp;(drop a different file to start over)`;
+    matchResults = [];   // new file = fresh matching
     buildMapping();
   };
   r.readAsText(f);
@@ -301,15 +426,15 @@ function guessCol(patterns) {
   return headers[0];
 }
 function buildMapping() {
-  const opts = headers.map(h => `<option>${h.replace(/</g,'&lt;')}</option>`).join('');
+  const opts = headers.map(h => `<option>${esc(h)}</option>`).join('');
   for (const id of ['colDate','colArtist','colVenue','colCity']) $(id).innerHTML = opts;
   $('colDate').value = guessCol(['date','when']);
   $('colArtist').value = guessCol(['band','artist','headliner','performer']);
   $('colVenue').value = guessCol(['venue','where']);
   $('colCity').value = guessCol(['location','city','place']);
-  $('mapping').classList.remove('hidden');
-  for (const id of ['colDate','colArtist','colVenue','colCity']) $(id).onchange = normalizeShows;
-  $('allArtists').onchange = normalizeShows;
+  $('mappingDetails').classList.remove('hidden');
+  for (const id of ['colDate','colArtist','colVenue','colCity']) $(id).onchange = () => { matchResults = []; normalizeShows(); };
+  $('allArtists').onchange = () => { matchResults = []; normalizeShows(); };
   normalizeShows();
 }
 
@@ -321,7 +446,7 @@ function normalizeShows() {
   rows.forEach((r, i) => {
     const ymd = parseDate(r[cD]);
     if (!ymd) { badDates++; return; }
-    let artists = [r[cA]];
+    let artists;
     if (splitBill) artists = r[cA].split(/\s*[,\/;]\s*|\s+\+\s+/).filter(Boolean);
     else artists = [r[cA].split(/\s*[,\/;]\s*|\s+\+\s+/)[0] || r[cA]];
     artists.forEach(a => {
@@ -336,13 +461,20 @@ function normalizeShows() {
     const k = norm(s.artist) + '|' + s.dateISO;
     if (seen.has(k)) return false; seen.add(k); return true;
   });
-  $('parseStatus').textContent =
-    `${shows.length} artist-nights to look up` + (badDates ? ` · ${badDates} rows skipped (unreadable date)` : '');
-  const prev = shows.slice(0, 8).map(s =>
+
+  if (shows.length) {
+    $('parseOk').innerHTML = `✓ <b>Found ${shows.length} shows.</b>` +
+      (badDates ? ` (${badDates} row${badDates > 1 ? 's' : ''} had a date we couldn't read — they're skipped.)` : '');
+    $('parseOk').classList.remove('hidden');
+    $('toStep2').classList.remove('hidden');
+  } else {
+    $('parseOk').classList.add('hidden');
+    $('toStep2').classList.add('hidden');
+  }
+  const prev = shows.slice(0, 10).map(s =>
     `<tr><td>${s.dateISO}</td><td>${esc(s.artist)}</td><td>${esc(s.venue)}</td><td>${esc(s.city)}</td></tr>`).join('');
   $('preview').innerHTML = `<tr><th>Date</th><th>Artist</th><th>Venue</th><th>City</th></tr>${prev}` +
-    (shows.length > 8 ? `<tr><td colspan="4" style="color:var(--muted)">…and ${shows.length - 8} more</td></tr>` : '');
-  $('matchBtn').disabled = shows.length === 0;
+    (shows.length > 10 ? `<tr><td colspan="4" style="color:var(--muted)">…and ${shows.length - 10} more</td></tr>` : '');
 }
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
@@ -362,17 +494,17 @@ async function lookup(show) {
   const key = norm(show.artist) + '|' + show.dateApi;
   const hit = cacheGet(key);
   if (hit !== undefined) return hit;
-  const base = $('proxyUrl').value.trim().replace(/\/$/, '');
-  if (!base) throw new Error('Set the relay URL in step 2 first.');
+  const base = relayUrl();
+  if (!base) throw new Error("This copy of the tool isn't connected to the archive yet — see “Connection settings” at the bottom of the page.");
   const url = `${base}/rest/1.0/search/setlists?artistName=${encodeURIComponent(show.artist)}&date=${show.dateApi}`;
-  const headers = { 'Accept': 'application/json' };
+  const reqHeaders = { 'Accept': 'application/json' };
   const userKey = $('apiKey').value.trim();
-  if (userKey) headers['x-api-key'] = userKey;
+  if (userKey) reqHeaders['x-api-key'] = userKey;
   for (let attempt = 0; attempt < 4; attempt++) {
-    const resp = await fetch(url, { headers });
+    const resp = await fetch(url, { headers: reqHeaders });
     if (resp.status === 429) { await sleep(4000 * (attempt + 1)); continue; }
     if (resp.status === 404) { cachePut(key, null); return null; }   // no setlists that day
-    if (!resp.ok) throw new Error(`setlist.fm relay answered ${resp.status}`);
+    if (!resp.ok) throw new Error(`The archive answered with an error (${resp.status}). Wait a moment and press “Match my shows” to keep going.`);
     const data = await resp.json();
     const slim = (data.setlist || []).map(sl => ({
       id: sl.id,
@@ -385,7 +517,7 @@ async function lookup(show) {
     cachePut(key, slim.length ? slim : null);
     return slim.length ? slim : null;
   }
-  throw new Error('Rate-limited repeatedly — try again in a minute.');
+  throw new Error('The archive is busy right now — wait a minute, then press “Match my shows” to pick up where you left off.');
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -394,6 +526,7 @@ $('matchBtn').onclick = async () => {
   if (running) return;
   running = true;
   saveSettings();
+  $('matchBtn').classList.remove('pulse');
   $('matchBtn').disabled = true; $('stopBtn').style.display = '';
   if (!matchResults.length || matchResults.length !== shows.length) {
     matchResults = shows.map(s => ({ show: s, status: 'pending', pick: null, candidates: [] }));
@@ -402,7 +535,7 @@ $('matchBtn').onclick = async () => {
   let done = matchResults.length - todo.length;
   for (const r of todo) {
     if (!running) break;
-    $('matchStatus').textContent = `Looking up ${r.show.artist} — ${r.show.dateISO}…`;
+    $('matchStatus').textContent = `Looking up ${r.show.artist} — ${r.show.dateISO}…  (${done + 1} of ${matchResults.length})`;
     try {
       const cands = await lookup(r.show);
       classify(r, cands);
@@ -415,12 +548,14 @@ $('matchBtn').onclick = async () => {
     refreshCounts();
     await sleep(650);  // stay well inside setlist.fm free-tier rate limits
   }
-  if (running) $('matchStatus').textContent = 'Done.';
+  const finished = !matchResults.some(r => r.status === 'pending');
+  if (finished) $('matchStatus').textContent = 'All done ✓';
   running = false;
   $('matchBtn').disabled = false; $('stopBtn').style.display = 'none';
+  $('matchBtn').textContent = finished ? 'Match again' : 'Keep matching';
   renderResults(); renderAmbiguous(); buildPayloadUI();
 };
-$('stopBtn').onclick = () => { running = false; $('matchStatus').textContent = 'Paused — press Match shows to resume.'; };
+$('stopBtn').onclick = () => { running = false; $('matchStatus').textContent = 'Paused — press the button to pick up where you left off.'; $('matchBtn').textContent = 'Keep matching'; };
 
 function classify(r, cands) {
   if (!cands || !cands.length) { r.status = 'missing'; return; }
@@ -447,33 +582,33 @@ function venueStr(c) {
 
 function renderResults() {
   const rowsHtml = matchResults.filter(r => r.status !== 'pending').map(r => {
-    const tag = r.status === 'matched' ? '<span class="tag ok">matched</span>'
-              : r.status === 'ambiguous' ? '<span class="tag warn">choose</span>'
-              : '<span class="tag bad">not found</span>';
+    const tag = r.status === 'matched' ? '<span class="tag ok">found</span>'
+              : r.status === 'ambiguous' ? '<span class="tag warn">your pick</span>'
+              : '<span class="tag bad">not there</span>';
     const target = r.pick ? esc(venueStr(r.pick)) : '';
     return `<tr><td>${r.show.dateISO}</td><td>${esc(r.show.artist)}</td><td>${esc(r.show.venue)}</td><td>${tag}</td><td>${target}</td></tr>`;
   }).join('');
-  $('results').innerHTML = `<tr><th>Date</th><th>Artist</th><th>Your venue</th><th>Status</th><th>Matched to</th></tr>` + rowsHtml;
-  $('resultsBox').classList.toggle('hidden', !rowsHtml);
+  $('results').innerHTML = `<tr><th>Date</th><th>Artist</th><th>Your venue</th><th></th><th>Matched to</th></tr>` + rowsHtml;
+  $('resultsDetails').classList.toggle('hidden', !rowsHtml);
 }
 
 function renderAmbiguous() {
-  const amb = matchResults.filter(r => r.status === 'ambiguous');
+  const amb = matchResults.map((r, idx) => ({ r, idx })).filter(x => x.r.status === 'ambiguous');
   if (!amb.length) { $('ambigBox').innerHTML = ''; return; }
-  $('ambigBox').innerHTML = '<h3 style="margin:18px 0 6px;font-size:1rem">Same date, multiple shows — pick yours:</h3>' +
-    amb.map((r, i) => {
+  $('ambigBox').innerHTML =
+    `<h3 style="margin:20px 0 4px;font-size:1.05rem">There was more than one show that night — which one were you at?</h3>` +
+    amb.map(({ r, idx }) => {
       const opts = r.candidates.map((c, j) =>
-        `<label><input type="radio" name="amb${i}" value="${j}"> ${esc(venueStr(c))}${c.tour ? ' · ' + esc(c.tour) : ''}</label>`).join('') +
-        `<label><input type="radio" name="amb${i}" value="-1"> none of these</label>`;
-      return `<div class="pill-radio" style="margin-bottom:14px"><b>${esc(r.show.artist)}</b> — ${r.show.dateISO} (you logged: ${esc(r.show.venue || '?')}, ${esc(r.show.city || '?')})<br>${opts}</div>`;
+        `<label><input type="radio" name="amb-${idx}" value="${j}"> ${esc(venueStr(c))}${c.tour ? ' · ' + esc(c.tour) : ''}</label>`).join('') +
+        `<label><input type="radio" name="amb-${idx}" value="-1"> none of these</label>`;
+      return `<div class="pickcard"><b>${esc(r.show.artist)}</b> — ${r.show.dateISO}<br>` +
+        `<span class="you">You logged: ${esc(r.show.venue || 'venue unknown')}${r.show.city ? ', ' + esc(r.show.city) : ''}</span>${opts}</div>`;
     }).join('');
   $('ambigBox').querySelectorAll('input[type=radio]').forEach(inp => {
     inp.addEventListener('change', () => {
-      const idx = +inp.name.slice(3), val = +inp.value;
-      const amb2 = matchResults.filter(r => r.status === 'ambiguous' || r.resolvedFromAmbig);
-      const r = amb2[idx];
+      const idx = +inp.name.slice(4), val = +inp.value;
+      const r = matchResults[idx];
       if (!r) return;
-      r.resolvedFromAmbig = true;
       if (val === -1) { r.status = 'missing'; r.pick = null; }
       else { r.status = 'matched'; r.pick = r.candidates[val]; }
       refreshCounts(); renderResults(); buildPayloadUI();
@@ -514,17 +649,28 @@ location.reload();})();`;
 function buildPayloadUI() {
   const payload = buildPayload();
   const nShows = Object.values(payload).reduce((a, l) => a + l.length, 0);
+  const nArtists = Object.keys(payload).length;
+  const anyDone = matchResults.some(r => r.status !== 'pending');
+  const allDone = anyDone && !matchResults.some(r => r.status === 'pending');
+  $('toStep3').classList.toggle('hidden', !(allDone && nShows));
   if (!nShows) return;
+
+  $('readyCount').textContent = `✓ ${nShows} show${nShows > 1 ? 's' : ''} ready — ${nArtists} artist${nArtists > 1 ? 's' : ''}`;
   const src = injectorSource(payload);
   $('snippet').textContent = src;
   $('bookmarklet').href = 'javascript:' + encodeURIComponent(src);
   $('bookmarklet').textContent = `🎫 Import my ${nShows} shows`;
   $('bookmarklet').onclick = null;
+
+  const un = matchResults.filter(r => r.status === 'missing');
+  $('missingDetails').classList.toggle('hidden', !un.length);
+  if (un.length) $('missingSummary').textContent =
+    `${un.length} show${un.length > 1 ? 's' : ''} couldn't come along — here's why`;
 }
 
 $('copyBtn').onclick = async () => {
   await navigator.clipboard.writeText($('snippet').textContent);
-  $('copyBtn').textContent = 'Copied ✓'; setTimeout(() => $('copyBtn').textContent = 'Copy snippet', 1500);
+  $('copyBtn').textContent = 'Copied ✓'; setTimeout(() => $('copyBtn').textContent = 'Copy it', 1500);
 };
 $('dlPayload').onclick = () => {
   download('concert-porter-payload.json', JSON.stringify(buildPayload(), null, 2), 'application/json');
