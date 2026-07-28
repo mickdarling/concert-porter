@@ -241,6 +241,14 @@
   .hidden { display: none !important; }
   footer { color: var(--muted); font-size: .8rem; margin-top: 44px; }
   footer a { color: inherit; }
+  /* Attribution and the source link sit right next to the privacy claim, so
+     the promise and the means of checking it are in the same place. */
+  footer .colophon {
+    margin: 0 0 14px; padding-bottom: 13px; border-bottom: 1px solid var(--line);
+    font-size: .86rem; line-height: 1.7; color: var(--ink);
+  }
+  footer .colophon a { color: var(--accent); text-decoration: underline; }
+  footer .colophon .oblig { display: block; color: var(--muted); font-size: .95em; margin-top: 3px; }
 
   /* phones & small tablets */
   @media (max-width: 620px) {
@@ -447,6 +455,12 @@
   </div>
 
   <footer>
+    <p class="colophon">
+      <b>Concert Porter</b> — © 2026 <a href="https://mickdarling.com" target="_blank" rel="author noopener">Mick Darling</a>.
+      Free software, licensed <a href="https://github.com/mickdarling/concert-porter/blob/main/LICENSE" target="_blank" rel="license noopener">AGPL-3.0</a>.
+      <a href="https://github.com/mickdarling/concert-porter" target="_blank" rel="noopener">Read or fork the source on GitHub ↗</a>
+      <span class="oblig">Running a modified copy of this page? The licence asks you to offer your users its source too — so anyone can see what a version has been changed to do.</span>
+    </p>
     An independent helper tool — not affiliated with Concert Archives, What I've Heard, or setlist.fm.
     Your file never leaves your browser; only band names and dates are sent out to look shows up.
     <details>
