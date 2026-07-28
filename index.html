@@ -137,6 +137,25 @@
   .chipnote { font-size: .82rem; color: var(--muted); margin: 7px 0 0; }
   .chipnote code { font-size: .95em; }
 
+  /* Clicking it twice is the whole trick, and it has to be said out loud. */
+  .twoclick {
+    border: 1px solid var(--line); border-left: 4px solid var(--ok);
+    border-radius: 10px; padding: 15px 18px; margin-top: 14px;
+    background: rgba(29,122,62,.05);
+  }
+  .twoclick h4 { margin: 0 0 11px; font-size: 1rem; }
+  .twoclick .clickrow { display: flex; gap: 13px; align-items: flex-start; margin-bottom: 10px; }
+  .twoclick .num {
+    flex: 0 0 auto; background: var(--ok); color: #fff; border-radius: 20px;
+    padding: 3px 12px; font-size: .76rem; font-weight: 700; white-space: nowrap;
+    text-transform: uppercase; letter-spacing: .03em; margin-top: 1px;
+  }
+  .twoclick .clickrow div { min-width: 0; }
+  .twoclick .safe {
+    margin: 12px 0 0; font-size: .85rem; color: var(--muted);
+    border-top: 1px solid var(--line); padding-top: 10px;
+  }
+
   /* the little browser diagrams */
   .howto { margin: 14px 0 4px; }
   .howto svg { width: 100%; max-width: 420px; height: auto; display: block; border-radius: 8px; }
@@ -287,9 +306,15 @@
             </a>
             <p class="chipnote">Can't drag? <button class="ghost" id="caCopyBtn" style="margin:0;padding:5px 12px">Copy it instead</button> and paste it as a new bookmark's address.</p>
           </div></li>
-          <li><span class="dot">3</span><div><b>Open your concert page, then click that new bookmark.</b>
-            <span>It reads every page of your history and brings you straight back here — nothing to copy.</span>
-            <span style="display:block;margin-top:8px"><a class="btn" id="caOpenBtn" href="#" target="_blank" rel="noopener" style="margin-top:0">Open my Concert Archives page ↗</a></span>
+          <li><span class="dot">3</span><div><b>Now click that new bookmark twice.</b>
+            <span>Not a double-click — two separate clicks, and it does the rest.</span>
+            <div class="twoclick">
+              <h4>🎤 What the two clicks do</h4>
+              <div class="clickrow"><span class="num">1st click</span><div>Opens <b>your Concert Archives page</b> in a new tab. Nothing else happens yet.</div></div>
+              <div class="clickrow"><span class="num">2nd click</span><div>On that new tab, click the bookmark again. It reads <b>every page</b> of your history and brings you straight back here with it — nothing to copy or download.</div></div>
+              <p class="safe">✓ Safe to click as many times as you like. Doing it again just fetches your list again, and anything already matched is kept.</p>
+            </div>
+            <p class="chipnote">Rather go there yourself? <a id="caOpenBtn" href="#" target="_blank" rel="noopener">Open my Concert Archives page ↗</a> — then click the bookmark once, on that page.</p>
           </div></li>
         </ol>
         <div class="banner info" id="caHint" style="margin-top:4px">Type your username above and these two buttons will wake up.</div>
@@ -381,7 +406,16 @@
             </a>
             <p class="chipnote">Can't drag? <button class="ghost" id="copyCodeBtn2" style="margin:0;padding:5px 12px">Copy it instead</button> and paste it as a new bookmark's address.</p>
           </div></li>
-          <li><span class="dot">2</span><div><b>Open <a href="https://whativeheard.com" target="_blank" rel="noopener">whativeheard.com</a> and click that new bookmark.</b><span>A little message tells you how many shows came across, the page refreshes, and there they are — all ticked.</span></div></li>
+          <li><span class="dot">2</span><div><b>Now click that new bookmark twice.</b>
+            <span>Not a double-click — two separate clicks, and it does the rest.</span>
+            <div class="twoclick">
+              <h4>🎫 What the two clicks do</h4>
+              <div class="clickrow"><span class="num">1st click</span><div>Opens <b>What I've Heard</b> in a new tab. Nothing else happens yet.</div></div>
+              <div class="clickrow"><span class="num">2nd click</span><div>On that new tab, click the bookmark again. Your shows go in, a message tells you how many came across, and the page refreshes with them all ticked.</div></div>
+              <p class="safe">✓ Safe to click as many times as you like. It only ever <b>adds</b> — it'll just tell you everything is already there.</p>
+            </div>
+            <p class="chipnote">Rather go there yourself? <a href="https://whativeheard.com" target="_blank" rel="noopener">Open whativeheard.com ↗</a> — then click the bookmark once, on that page.</p>
+          </div></li>
         </ol>
       </details>
       <details id="mobiWay">
@@ -846,15 +880,53 @@ async function loadFromHash() {
   if (!incoming || !incoming.length) return false;
   headers = ['Date', 'Concert', 'Venue', 'Location'];
   rows = incoming.map(s => ({ Date: s.date, Concert: s.artist, Venue: s.venue, Location: s.city }));
-  matchResults = [];
   autoPilot = true;
-  localStorage.removeItem(PROGRESS_KEY);   // a fresh grab replaces the old run
-  $('resumeNote').classList.add('hidden');
   if (data.user) { $('caUser').value = data.user; refreshCaButtons(); }
   $('grabWay').open = false;
+
+  // Clicking "Grab my shows" again is a thing people will do — to check it
+  // worked, or because they forgot they already had. If the history that
+  // comes back is the same one, keep everything already matched instead of
+  // throwing away a quarter of an hour of work.
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) || 'null'); } catch (e) {}
+  const sameAsBefore = saved && sameList(saved.rows, rows);
+  if (!sameAsBefore) {
+    matchResults = [];
+    localStorage.removeItem(PROGRESS_KEY);
+    $('resumeNote').classList.add('hidden');
+  }
   $('dropLabel').innerHTML = `<b>${incoming.length} show${incoming.length > 1 ? 's' : ''}</b> came straight from Concert Archives ✓`;
   buildMapping();
+
+  if (sameAsBefore) {
+    matchResults = restoreResults(saved.results || {});
+    const doneN = matchResults.filter(r => r.status !== 'pending').length;
+    refreshCounts(); renderResults(); buildPayloadUI();
+    $('bar').style.width = (100 * doneN / Math.max(1, matchResults.length)).toFixed(1) + '%';
+    if (doneN) {
+      $('resumeNote').innerHTML = `Same list as before — keeping the <b>${doneN}</b> show${doneN > 1 ? 's' : ''} already matched.`;
+      $('resumeNote').classList.remove('hidden');
+    }
+  }
   return true;
+}
+
+// Same list? Dates and artists are what matter; venue text can drift.
+function sameList(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (!a[i] || !b[i] || a[i].Date !== b[i].Date || a[i].Concert !== b[i].Concert) return false;
+  }
+  return true;
+}
+
+function restoreResults(saved) {
+  return shows.map(s => {
+    const hit = saved[showKey(s)];
+    return hit ? { show: s, status: hit.s, pick: hit.p, candidates: hit.p ? [hit.p] : [] }
+               : { show: s, status: 'pending', pick: null, candidates: [] };
+  });
 }
 
 /* ---------- file intake ---------- */
@@ -1111,12 +1183,7 @@ function loadProgress() {
     $('allArtists').checked = !!p.map.bill;
     normalizeShows();
   }
-  const saved = p.results || {};
-  matchResults = shows.map(s => {
-    const hit = saved[showKey(s)];
-    return hit ? { show: s, status: hit.s, pick: hit.p, candidates: hit.p ? [hit.p] : [] }
-               : { show: s, status: 'pending', pick: null, candidates: [] };
-  });
+  matchResults = restoreResults(p.results || {});
   const doneN = matchResults.filter(r => r.status !== 'pending').length;
   refreshCounts(); renderResults(); buildPayloadUI();
   $('bar').style.width = (100 * doneN / Math.max(1, matchResults.length)).toFixed(1) + '%';
