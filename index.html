@@ -200,19 +200,43 @@
   <div class="panel active" id="panel1">
     <div class="card">
       <h2>Get your concert list</h2>
-      <p class="lead">Concert Archives will email you a file with all your shows. Here's how to get it:</p>
-      <ol class="mini">
-        <li><span class="dot">1</span><div><b>Open <a href="https://www.concertarchives.org" target="_blank" rel="noopener">concertarchives.org</a> and sign in.</b><span>Same account you've always used.</span></div></li>
-        <li><span class="dot">2</span><div><b>Click your name (top right), then “Export To Spreadsheet.”</b><span>One click — that's the whole export.</span></div></li>
-        <li><span class="dot">3</span><div><b>Check your email and download the file.</b><span>It usually arrives within a couple of minutes. It's a “.csv” file.</span></div></li>
-      </ol>
-      <label class="drop" id="drop">
-        <span class="big">🎟️</span>
-        <span id="dropLabel"><b>Drop that file here</b> — or click to choose it</span>
-        <input type="file" id="file" accept=".csv,text/csv">
-      </label>
+      <p class="lead">Two ways to do this. The first is quicker — no email, no waiting.</p>
+
+      <details id="grabWay" open>
+        <summary><b>Fetch them straight from Concert Archives</b> — recommended</summary>
+        <ol class="mini" style="margin-top:14px">
+          <li><span class="dot">1</span><div><b>What's your Concert Archives username?</b>
+            <span>It's the name in your profile's web address — <code>concertarchives.org/<b>yourname</b></code>.</span>
+            <input type="text" id="caUser" placeholder="yourname" autocomplete="username" spellcheck="false" style="margin-top:8px">
+          </div></li>
+          <li><span class="dot">2</span><div><b>Make sure your bookmarks bar is showing, then drag this button onto it:</b>
+            <span>Mac: press <b>⌘⇧B</b> &nbsp;·&nbsp; Windows: <b>Ctrl+Shift+B</b></span>
+            <span style="display:block;margin-top:8px"><a class="btn" id="caGrabBtn" href="#" onclick="return false" style="margin-top:0">🎤 Grab my shows</a></span>
+          </div></li>
+          <li><span class="dot">3</span><div><b>Open your concert page, then click that new bookmark.</b>
+            <span>It reads every page of your history and brings you straight back here — nothing to copy.</span>
+            <span style="display:block;margin-top:8px"><a class="btn" id="caOpenBtn" href="#" target="_blank" rel="noopener" style="margin-top:0">Open my Concert Archives page ↗</a></span>
+          </div></li>
+        </ol>
+        <div class="banner info" id="caHint" style="margin-top:4px">Type your username above and these two buttons will wake up.</div>
+      </details>
+
+      <details id="csvWay">
+        <summary><b>Or use the emailed spreadsheet</b> — works everywhere, takes a few minutes longer</summary>
+        <ol class="mini" style="margin-top:14px">
+          <li><span class="dot">1</span><div><b>Open <a href="https://www.concertarchives.org" target="_blank" rel="noopener">concertarchives.org</a> and sign in.</b><span>Same account you've always used.</span></div></li>
+          <li><span class="dot">2</span><div><b>Click your name (top right), then “Export To Spreadsheet.”</b><span>One click — that's the whole export.</span></div></li>
+          <li><span class="dot">3</span><div><b>Check your email and download the file.</b><span>It usually arrives within a couple of minutes. It's a “.csv” file.</span></div></li>
+        </ol>
+        <label class="drop" id="drop">
+          <span class="big">🎟️</span>
+          <span id="dropLabel"><b>Drop that file here</b> — or click to choose it</span>
+          <input type="file" id="file" accept=".csv,text/csv">
+        </label>
+      </details>
       <div class="banner good hidden" id="parseOk"></div>
       <div class="banner info hidden" id="parseBad"></div>
+      <div class="banner info hidden" id="autoNote"></div>
       <details id="mappingDetails" class="hidden">
         <summary>Something look off? Check which columns we're reading</summary>
         <div class="row">
@@ -332,6 +356,7 @@ let headers = [];
 let shows = [];         // normalized {artist, dateISO, dateApi, venue, city, rowIdx}
 let matchResults = [];  // {show, status: 'matched'|'ambiguous'|'missing'|'pending', pick, candidates}
 let running = false;
+let paused = false;     // set only when the person hits Pause, so auto-resume stays out of the way
 
 /* ---------- wizard ---------- */
 function gotoStep(n) {
@@ -344,8 +369,29 @@ function gotoStep(n) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.querySelectorAll('.backlink').forEach(b => b.onclick = () => gotoStep(+b.dataset.goto));
-$('toStep2').onclick = () => { gotoStep(2); maybeWarnSetup(); };
+$('toStep2').onclick = () => { gotoStep(2); maybeWarnSetup(); runMatching(); };
 $('toStep3').onclick = () => gotoStep(3);
+
+/* ---------- hands-off progression ----------
+   The wizard drives itself: a readable list rolls straight into matching,
+   and matching rolls straight into the hand-off. The buttons stay put for
+   anyone who'd rather steer, and we never skip a step that needs a person
+   (picking between two shows on the same night). */
+let autoPilot = true;
+function currentStep() {
+  for (let i = 1; i <= 3; i++) if ($('panel' + i).classList.contains('active')) return i;
+  return 1;
+}
+function autoAdvanceToStep2() {
+  if (!autoPilot || currentStep() !== 1 || !shows.length) return;
+  gotoStep(2); maybeWarnSetup(); runMatching();
+}
+function maybeAdvanceToStep3() {
+  if (!autoPilot || currentStep() !== 2) return;
+  if (matchResults.some(r => r.status === 'ambiguous')) return;  // needs a human
+  if (!payloadShowCount(buildPayload())) return;
+  setTimeout(() => { if (currentStep() === 2) gotoStep(3); }, 900);
+}
 
 /* ---------- tiny CSV parser (quotes, embedded commas/newlines) ---------- */
 function parseCSV(text) {
@@ -462,6 +508,136 @@ async function checkLive() {
 }
 checkLive();
 
+/* ============================================================
+   Concert Archives grabber
+   Their site sits behind a bot challenge and sends no CORS
+   headers, so we can't read it from here — but the person's own
+   browser is already cleared. This bookmarklet runs *on* their
+   site, walks every page of the concert table (50 rows a page,
+   and per_page/limit are ignored), and hands the result back
+   through the URL fragment.
+   ============================================================ */
+const PORTER_URL = location.origin + location.pathname;
+
+function caGrabberSource(user) {
+  return `(function(){
+if(location.hostname.indexOf('concertarchives.org')===-1){alert('Open your Concert Archives page first, then click this again.');return;}
+var user=${JSON.stringify(user)}||location.pathname.split('/').filter(Boolean)[0];
+if(!user){alert('Concert Porter: could not work out your username from this page.');return;}
+var out=[],page=1,MAX=200;
+function clean(s){return (s||'').replace(/\\s+/g,' ').trim();}
+function rowsFrom(doc){
+  var t=doc.getElementById('concerts-list-table'); if(!t)return null;
+  var rs=t.querySelectorAll('tr'),got=[];
+  for(var i=0;i<rs.length;i++){
+    var c=rs[i].children; if(!c||c.length<4)continue;
+    if(c[0].tagName==='TH')continue;
+    var a=c[1].querySelector('a');
+    var name=clean(a?a.textContent:c[1].textContent);
+    var d=clean(c[0].textContent);
+    if(!d||!name)continue;
+    got.push({date:d,artist:name,venue:clean(c[2].textContent),city:clean(c[3].textContent)});
+  }
+  return got;
+}
+var n=document.createElement('div');
+n.style.cssText='position:fixed;z-index:2147483647;top:14px;right:14px;max-width:320px;background:#8c1d2f;color:#fff;font:14px/1.45 -apple-system,Segoe UI,Helvetica,sans-serif;padding:13px 18px;border-radius:11px;box-shadow:0 6px 22px rgba(0,0,0,.35)';
+n.textContent='Concert Porter: starting…';
+document.body.appendChild(n);
+function fail(m){n.style.background='#7a2016';n.textContent='Concert Porter: '+m;}
+function b64(bytes){
+  var s='';
+  for(var i=0;i<bytes.length;i+=4096){s+=String.fromCharCode.apply(null,bytes.subarray(i,i+4096));}
+  return btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_');
+}
+function send(bytes,tag){location.href=${JSON.stringify(PORTER_URL)}+'#'+tag+'='+b64(bytes);}
+function finish(){
+  if(!out.length){fail('found no shows on that profile. Is the username right?');return;}
+  n.textContent='Concert Porter: got '+out.length+' shows — bringing you back…';
+  // Rows travel as plain tuples and gzipped where the browser can manage it:
+  // a long history is otherwise a six-figure URL, which not every browser takes.
+  var rows=[];
+  for(var i=0;i<out.length;i++){rows.push([out[i].date,out[i].artist,out[i].venue,out[i].city]);}
+  var enc=new TextEncoder().encode(JSON.stringify({v:2,user:user,rows:rows}));
+  if(typeof CompressionStream==='function'){
+    try{
+      new Response(new Blob([enc]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer()
+        .then(function(buf){send(new Uint8Array(buf),'caz');})
+        .catch(function(){send(enc,'ca');});
+      return;
+    }catch(e){}
+  }
+  send(enc,'ca');
+}
+(function step(){
+  n.textContent='Concert Porter: reading page '+page+'… ('+out.length+' shows so far)';
+  fetch('/'+user+'/concerts?page='+page,{credentials:'include'})
+    .then(function(r){if(!r.ok)throw new Error('page '+page+' came back '+r.status);return r.text();})
+    .then(function(html){
+      var got=rowsFrom(new DOMParser().parseFromString(html,'text/html'));
+      if(got===null){ if(page===1){fail('could not find the concert table on that page.');}else{finish();} return; }
+      for(var i=0;i<got.length;i++)out.push(got[i]);
+      if(got.length<50||page>=MAX){finish();return;}
+      page++;setTimeout(step,300);
+    })
+    .catch(function(e){ if(out.length){finish();}else{fail(e.message);} });
+})();
+})();`;
+}
+
+function refreshCaButtons() {
+  const u = $('caUser').value.trim().replace(/^@/, '').replace(/^https?:\/\/[^/]+\//i, '').split('/')[0];
+  const ok = !!u;
+  $('caGrabBtn').href = ok ? 'javascript:' + encodeURIComponent(caGrabberSource(u)) : '#';
+  $('caOpenBtn').href = ok ? 'https://www.concertarchives.org/' + encodeURIComponent(u) + '/concerts' : '#';
+  $('caGrabBtn').style.opacity = $('caOpenBtn').style.opacity = ok ? '1' : '.45';
+  $('caGrabBtn').style.pointerEvents = ok ? '' : 'none';
+  $('caOpenBtn').style.pointerEvents = ok ? '' : 'none';
+  $('caHint').classList.toggle('hidden', ok);
+  try { localStorage.setItem('cp:causer:v1', u); } catch (e) {}
+}
+$('caUser').addEventListener('input', refreshCaButtons);
+try { $('caUser').value = localStorage.getItem('cp:causer:v1') || ''; } catch (e) {}
+refreshCaButtons();
+
+// Coming back from the grabber: shows ride in on the fragment, gzipped when
+// the browser could manage it (#caz=) and plain otherwise (#ca=).
+async function loadFromHash() {
+  const m = /[#&]ca(z)?=([A-Za-z0-9\-_]+)/.exec(location.hash || '');
+  if (!m) return false;
+  const gzipped = !!m[1];
+  history.replaceState(null, '', location.pathname + location.search);
+  let data;
+  try {
+    const bin = atob(m[2].replace(/-/g, '+').replace(/_/g, '/'));
+    let bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (gzipped) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    data = JSON.parse(new TextDecoder().decode(bytes));
+  } catch (e) {
+    $('parseBad').textContent = "We couldn't read what came back from Concert Archives. Try the grab again, or use the spreadsheet below.";
+    $('parseBad').classList.remove('hidden');
+    return false;
+  }
+  // v2 sends tuples; v1 sent objects. Accept either.
+  const incoming = Array.isArray(data && data.rows)
+    ? data.rows.map(t => ({ date: t[0], artist: t[1], venue: t[2], city: t[3] }))
+    : (data && Array.isArray(data.shows) ? data.shows : null);
+  if (!incoming || !incoming.length) return false;
+  headers = ['Date', 'Concert', 'Venue', 'Location'];
+  rows = incoming.map(s => ({ Date: s.date, Concert: s.artist, Venue: s.venue, Location: s.city }));
+  matchResults = [];
+  autoPilot = true;
+  if (data.user) { $('caUser').value = data.user; refreshCaButtons(); }
+  $('grabWay').open = false;
+  $('dropLabel').innerHTML = `<b>${incoming.length} shows</b> came straight from Concert Archives ✓`;
+  buildMapping();
+  return true;
+}
+
 /* ---------- file intake ---------- */
 const drop = $('drop');
 drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('armed'); });
@@ -489,6 +665,7 @@ function readFile(f) {
     });
     $('dropLabel').innerHTML = `<b>${esc(f.name)}</b> — got it ✓ &nbsp;(drop a different file to start over)`;
     matchResults = [];   // new file = fresh matching
+    autoPilot = true;    // a new list earns a fresh run at driving itself
     buildMapping();
   };
   r.readAsText(f);
@@ -505,26 +682,63 @@ function buildMapping() {
   const opts = headers.map(h => `<option>${esc(h)}</option>`).join('');
   for (const id of ['colDate','colArtist','colVenue','colCity']) $(id).innerHTML = opts;
   $('colDate').value = guessCol(['date','when']);
-  $('colArtist').value = guessCol(['band','artist','headliner','performer']);
+  // 'band' before 'concert': the CSV export has both "Bands Seen" and
+  // "Concert Name", and the band column is the one we want.
+  $('colArtist').value = guessCol(['band','artist','headliner','performer','concert']);
   $('colVenue').value = guessCol(['venue','where']);
   $('colCity').value = guessCol(['location','city','place']);
   $('mappingDetails').classList.remove('hidden');
-  for (const id of ['colDate','colArtist','colVenue','colCity']) $(id).onchange = () => { matchResults = []; normalizeShows(); };
-  $('allArtists').onchange = () => { matchResults = []; normalizeShows(); };
+  const stopAuto = () => { autoPilot = false; clearTimeout(advanceTimer); $('autoNote').classList.add('hidden'); };
+  for (const id of ['colDate','colArtist','colVenue','colCity']) $(id).onchange = () => { stopAuto(); matchResults = []; normalizeShows(); };
+  $('allArtists').onchange = () => { stopAuto(); matchResults = []; normalizeShows(); };
+  $('mappingDetails').addEventListener('toggle', () => { if ($('mappingDetails').open) stopAuto(); });
   normalizeShows();
+  scheduleAdvance();
+}
+
+// Roll into matching on our own, but visibly and interruptibly — nobody
+// likes a page that runs off without saying so.
+let advanceTimer = null;
+function scheduleAdvance() {
+  clearTimeout(advanceTimer);
+  if (!autoPilot || !shows.length) return;
+  let left = 3;
+  const paint = () => $('autoNote').innerHTML =
+    `Starting the match in ${left}s… <button class="ghost" id="holdBtn" style="margin:0 0 0 10px;padding:4px 12px">Wait — let me check</button>`;
+  $('autoNote').classList.remove('hidden');
+  paint();
+  $('autoNote').onclick = e => { if (e.target.id === 'holdBtn') { autoPilot = false; clearTimeout(advanceTimer); $('autoNote').classList.add('hidden'); } };
+  const tick = setInterval(() => {
+    left--;
+    if (!autoPilot) { clearInterval(tick); return; }
+    if (left > 0) paint();
+  }, 1000);
+  advanceTimer = setTimeout(() => { clearInterval(tick); $('autoNote').classList.add('hidden'); autoAdvanceToStep2(); }, 3200);
 }
 
 function normalizeShows() {
   const cD = $('colDate').value, cA = $('colArtist').value, cV = $('colVenue').value, cC = $('colCity').value;
   const splitBill = $('allArtists').checked;
   shows = [];
-  let badDates = 0;
+  let badDates = 0, future = 0;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  // Splitting a bill on commas would saw "Crosby, Stills & Nash" in half, so
+  // commas only count as separators when the person has asked for every act
+  // on the bill (which is also the only time the export comma-separates).
+  // A slash only separates acts when it's spaced ("Cursive / Chris Crisci"),
+  // which is how Concert Archives writes a shared bill — otherwise AC/DC
+  // walks away as "AC". " + " isn't treated as a separator at all: it costs
+  // us Florence + the Machine, and a bill we fail to split just shows up in
+  // the "couldn't come along" list rather than being silently mangled.
+  const SEP_BILL  = /\s*[,;]\s*|\s+\/\s+/;
+  const SEP_HEAD  = /\s*;\s*|\s+\/\s+/;
   rows.forEach((r, i) => {
     const ymd = parseDate(r[cD]);
     if (!ymd) { badDates++; return; }
+    if (toISO(ymd) > todayISO) { future++; return; }   // shows not played yet
     let artists;
-    if (splitBill) artists = r[cA].split(/\s*[,\/;]\s*|\s+\+\s+/).filter(Boolean);
-    else artists = [r[cA].split(/\s*[,\/;]\s*|\s+\+\s+/)[0] || r[cA]];
+    if (splitBill) artists = r[cA].split(SEP_BILL).filter(Boolean);
+    else artists = [r[cA].split(SEP_HEAD)[0] || r[cA]];
     artists.forEach(a => {
       if (!a.trim()) return;
       shows.push({ artist: a.trim(), dateISO: toISO(ymd), dateApi: toApiDate(ymd),
@@ -539,8 +753,9 @@ function normalizeShows() {
   });
 
   if (shows.length) {
-    $('parseOk').innerHTML = `✓ <b>Found ${shows.length} shows.</b>` +
-      (badDates ? ` (${badDates} row${badDates > 1 ? 's' : ''} had a date we couldn't read — they're skipped.)` : '');
+    $('parseOk').innerHTML = `✓ <b>Found ${shows.length} show${shows.length > 1 ? 's' : ''}.</b>` +
+      (badDates ? ` (${badDates} row${badDates > 1 ? 's' : ''} had a date we couldn't read — they're skipped.)` : '') +
+      (future ? ` (${future} show${future > 1 ? 's are' : ' is'} still to come — skipped for now.)` : '');
     $('parseOk').classList.remove('hidden');
     $('toStep2').classList.remove('hidden');
   } else {
@@ -598,42 +813,106 @@ async function lookup(show) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------- match loop ---------- */
-$('matchBtn').onclick = async () => {
+// A hiccup mid-run used to stop everything and wait for a click. Now a show
+// that fails is retried in place, and a run that falls over picks itself back
+// up — the person never has to babysit it.
+let stalls = 0;
+let resumeTimer = null;
+
+async function runMatching() {
   if (running) return;
+  clearTimeout(resumeTimer);
   running = true;
+  paused = false;
   saveSettings();
   $('matchBtn').classList.remove('pulse');
   $('matchBtn').disabled = true; $('stopBtn').style.display = '';
   if (!matchResults.length || matchResults.length !== shows.length) {
     matchResults = shows.map(s => ({ show: s, status: 'pending', pick: null, candidates: [] }));
   }
-  const todo = matchResults.filter(r => r.status === 'pending');
-  let done = matchResults.length - todo.length;
-  for (const r of todo) {
+  const total = matchResults.length;
+  let done = matchResults.filter(r => r.status !== 'pending').length;
+  let hardStop = null;
+
+  for (const r of matchResults.filter(r => r.status === 'pending')) {
     if (!running) break;
-    $('matchStatus').textContent = `Looking up ${r.show.artist} — ${r.show.dateISO}…  (${done + 1} of ${matchResults.length})`;
-    try {
-      const cands = await lookup(r.show);
-      classify(r, cands);
-    } catch (e) {
-      $('matchStatus').textContent = '⚠ ' + e.message;
-      running = false; break;
+    $('matchStatus').textContent =
+      `Looking up ${r.show.artist} — ${r.show.dateISO}…  (${done + 1} of ${total})`;
+    let ok = false;
+    for (let attempt = 1; attempt <= 3 && running; attempt++) {
+      try {
+        classify(r, await lookup(r.show));
+        ok = true; stalls = 0; break;
+      } catch (e) {
+        if (attempt === 3) { hardStop = e; break; }
+        $('matchStatus').textContent = `Archive hiccup — trying ${r.show.artist} again (${attempt} of 3)…`;
+        await sleep(2500 * attempt);
+      }
     }
+    if (!ok) break;
     done++;
-    $('bar').style.width = (100 * done / matchResults.length).toFixed(1) + '%';
+    $('bar').style.width = (100 * done / total).toFixed(1) + '%';
     refreshCounts();
     await sleep(700);  // stays inside both the relay's per-IP limit and setlist.fm's free tier
   }
-  const finished = !matchResults.some(r => r.status === 'pending');
-  if (finished) $('matchStatus').textContent = 'All done ✓';
+
   running = false;
   $('matchBtn').disabled = false; $('stopBtn').style.display = 'none';
+  const finished = !matchResults.some(r => r.status === 'pending');
   $('matchBtn').textContent = finished ? 'Match again' : 'Keep matching';
   renderResults(); renderAmbiguous(); buildPayloadUI();
+
+  if (finished) {
+    stalls = 0;
+    $('matchStatus').textContent = 'All done ✓';
+    maybeAdvanceToStep3();
+  } else if (hardStop && !paused) {
+    // Back off and resume on our own, so a rough patch on the archive's end
+    // doesn't strand someone half-way through a long history.
+    stalls++;
+    if (stalls <= 5) {
+      const wait = Math.min(60, 10 * stalls);
+      let left = wait;
+      $('matchStatus').textContent = `⚠ ${hardStop.message} Picking back up in ${left}s…`;
+      const tick = setInterval(() => {
+        left--;
+        if (left > 0 && !running) $('matchStatus').textContent = `⚠ ${hardStop.message} Picking back up in ${left}s…`;
+      }, 1000);
+      resumeTimer = setTimeout(() => { clearInterval(tick); runMatching(); }, wait * 1000);
+    } else {
+      $('matchStatus').textContent = `⚠ ${hardStop.message} Press “Keep matching” when you're ready.`;
+    }
+  } else if (paused) {
+    $('matchStatus').textContent = 'Paused — press the button to pick up where you left off.';
+  }
+}
+
+$('matchBtn').onclick = runMatching;
+$('stopBtn').onclick = () => {
+  paused = true; running = false;
+  clearTimeout(resumeTimer);
+  $('matchStatus').textContent = 'Paused — press the button to pick up where you left off.';
+  $('matchBtn').textContent = 'Keep matching';
 };
-$('stopBtn').onclick = () => { running = false; $('matchStatus').textContent = 'Paused — press the button to pick up where you left off.'; $('matchBtn').textContent = 'Keep matching'; };
+
+// setlist.fm's artistName search is a fuzzy substring match, so asking for
+// "Radiohead" also hands back the tribute act "An Evening of Radiohead".
+// Anything whose name isn't really the artist we asked for gets dropped
+// before it can be auto-accepted.
+function artistLooksRight(want, got) {
+  const a = norm(want), b = norm(got);
+  if (!b) return false;
+  if (a === b) return true;
+  if (a.replace(/^the /, '') === b.replace(/^the /, '')) return true;
+  return tokenOverlap(a, b) >= 0.99 && Math.abs(a.length - b.length) <= 6;
+}
 
 function classify(r, cands) {
+  if (cands && cands.length) {
+    const kept = cands.filter(c => artistLooksRight(r.show.artist, c.artistName));
+    // If nothing survives, the archive knew that night but not that artist.
+    cands = kept;
+  }
   if (!cands || !cands.length) { r.status = 'missing'; return; }
   if (cands.length === 1) { r.status = 'matched'; r.pick = cands[0]; r.candidates = cands; return; }
   const scored = cands.map(c => ({ c, s: scoreCandidate(r.show, c) })).sort((a, b) => b.s - a.s);
@@ -688,43 +967,81 @@ function renderAmbiguous() {
       if (val === -1) { r.status = 'missing'; r.pick = null; }
       else { r.status = 'matched'; r.pick = r.candidates[val]; }
       refreshCounts(); renderResults(); buildPayloadUI();
+      maybeAdvanceToStep3();   // last pick made? carry on by itself
     });
   });
 }
 
 /* ---------- payload + delivery ---------- */
+// Artist names travel with the ids: What I've Heard renders your shelf from
+// its artist roster, so a tick with no artist registered is invisible.
 function buildPayload() {
   const byMbid = {};
   matchResults.forEach(r => {
     if (r.status !== 'matched' || !r.pick) return;
-    (byMbid[r.pick.mbid] = byMbid[r.pick.mbid] || []).push(r.pick.id);
+    const e = byMbid[r.pick.mbid] = byMbid[r.pick.mbid] || { name: r.pick.artistName || r.show.artist, ids: [] };
+    if (e.ids.indexOf(r.pick.id) < 0) e.ids.push(r.pick.id);
   });
   return byMbid;
 }
+const payloadShowCount = p => Object.values(p).reduce((a, e) => a + e.ids.length, 0);
 
-// The injector that runs ON whativeheard.com — merges, never clobbers.
+/* The injector that runs ON whativeheard.com. It merges, never clobbers.
+   Three things here are load-bearing, learned from reading their app:
+     · seen:artists:v1 is the roster the shelf renders from. Ticking a show
+       without registering the artist leaves the tick invisible.
+     · Their sync merges by timestamp, so every tick is re-stamped on each
+       import. Otherwise a re-import loses to an earlier delete and vanishes.
+     · Removing an artist writes a tombstone into seen:removed:v1, and their
+       merge drops any artist whose removedAt beats its addedAt. We clear it,
+       so a show you deleted can be brought back. */
 function injectorSource(payload) {
   return `(function(){
-if(location.hostname.indexOf('whativeheard.com')===-1){alert('Open whativeheard.com first, then run this again.');return;}
+if(location.hostname.indexOf('whativeheard.com')===-1){alert('Open whativeheard.com first, then click this again.');return;}
 var P=${JSON.stringify(payload)};
-var A='seen:attended:v1',T='seen:tickmeta:v1';
-var att=JSON.parse(localStorage.getItem(A)||'{}');
-var tm=JSON.parse(localStorage.getItem(T)||'{"attended":{},"planning":{}}');
+var A='seen:attended:v1',T='seen:tickmeta:v1',R='seen:artists:v1',AD='seen:added:v1',RM='seen:removed:v1';
+function g(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+function fnv(s){var t=2166136261;for(var i=0;i<s.length;i++){t^=s.charCodeAt(i);t=Math.imul(t,16777619);}return t>>>0;}
+var PAL=['#a44a2a','#556274','#5c6e51','#7d5578','#3f6d6a','#8a6a33','#69566f','#356682'];
+var att=g(A,{}),tm=g(T,{attended:{},planning:{}}),arts=g(R,[]),add=g(AD,{}),rm=g(RM,{});
+if(!Array.isArray(arts))arts=[];
 tm.attended=tm.attended||{};tm.planning=tm.planning||{};
-var now=Date.now(),added=0;
-for(var mbid in P){att[mbid]=att[mbid]||[];tm.attended[mbid]=tm.attended[mbid]||{};
-for(var i=0;i<P[mbid].length;i++){var id=P[mbid][i];
-if(att[mbid].indexOf(id)<0){att[mbid].push(id);added++;}
-if(!tm.attended[mbid][id])tm.attended[mbid][id]=now;}}
+var now=Date.now(),nShow=0,nArt=0,nAll=0;
+for(var mbid in P){
+  var name=P[mbid].name,ids=P[mbid].ids;
+  nAll+=ids.length;
+  att[mbid]=att[mbid]||[];tm.attended[mbid]=tm.attended[mbid]||{};
+  for(var i=0;i<ids.length;i++){
+    var id=ids[i];
+    if(att[mbid].indexOf(id)<0){att[mbid].push(id);nShow++;}
+    tm.attended[mbid][id]=now;
+  }
+  var seen=false;
+  for(var j=0;j<arts.length;j++){if(arts[j]&&arts[j].mbid===mbid){seen=true;break;}}
+  if(!seen){
+    var h=fnv(mbid);
+    arts.unshift({mbid:mbid,name:name,origin:'from the setlist.fm archive',
+      accent:PAL[h%PAL.length],poster:h%2===0?'grit':'mono',custom:true});
+    nArt++;
+  }
+  add[mbid]=now;delete rm[mbid];
+}
 localStorage.setItem(A,JSON.stringify(att));
 localStorage.setItem(T,JSON.stringify(tm));
-alert('Concert Porter: '+added+' new shows imported. Reloading\\u2026');
+localStorage.setItem(R,JSON.stringify(arts));
+localStorage.setItem(AD,JSON.stringify(add));
+localStorage.setItem(RM,JSON.stringify(rm));
+var msg='Concert Porter: '+nAll+' show'+(nAll===1?'':'s')+' now ticked on your shelf';
+if(nArt)msg+=', across '+nArt+' newly added artist'+(nArt===1?'':'s');
+msg+='.\\u000A'+(nShow?nShow+' of them '+(nShow===1?'was':'were')+' new; the rest were already there.':'They were all already ticked — your shelf just got them back.');
+msg+='\\u000ANothing you already had was touched. Reloading\\u2026';
+alert(msg);
 location.reload();})();`;
 }
 
 function buildPayloadUI() {
   const payload = buildPayload();
-  const nShows = Object.values(payload).reduce((a, l) => a + l.length, 0);
+  const nShows = payloadShowCount(payload);
   const nArtists = Object.keys(payload).length;
   const anyDone = matchResults.some(r => r.status !== 'pending');
   const allDone = anyDone && !matchResults.some(r => r.status === 'pending');
@@ -735,7 +1052,7 @@ function buildPayloadUI() {
   const src = injectorSource(payload);
   $('snippet').textContent = src;
   $('bookmarklet').href = 'javascript:' + encodeURIComponent(src);
-  $('bookmarklet').textContent = `🎫 Import my ${nShows} shows`;
+  $('bookmarklet').textContent = `🎫 Import my ${nShows} show${nShows > 1 ? 's' : ''}`;
   $('bookmarklet').onclick = null;
 
   const un = matchResults.filter(r => r.status === 'missing');
@@ -774,6 +1091,9 @@ function download(name, text, type) {
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
+
+// Landing here straight from the Concert Archives grabber.
+loadFromHash();
 </script>
 </body>
 </html>
