@@ -1092,8 +1092,11 @@ function download(name, text, type) {
   a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
 
-// Landing here straight from the Concert Archives grabber.
+// Landing here straight from the Concert Archives grabber. The hashchange
+// case matters when this page is already open and the grabber only swaps the
+// fragment — that's a same-document navigation, so nothing would re-run.
 loadFromHash();
+window.addEventListener('hashchange', loadFromHash);
 </script>
 </body>
 </html>
