@@ -633,7 +633,7 @@ async function loadFromHash() {
   autoPilot = true;
   if (data.user) { $('caUser').value = data.user; refreshCaButtons(); }
   $('grabWay').open = false;
-  $('dropLabel').innerHTML = `<b>${incoming.length} shows</b> came straight from Concert Archives ✓`;
+  $('dropLabel').innerHTML = `<b>${incoming.length} show${incoming.length > 1 ? 's' : ''}</b> came straight from Concert Archives ✓`;
   buildMapping();
   return true;
 }
