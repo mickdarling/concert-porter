@@ -196,6 +196,24 @@
   .pickcard .you { color: var(--muted); font-size: .88rem; }
 
   .readycount { font-size: 2.2rem; font-weight: 700; color: var(--ok); margin: 4px 0 2px; }
+
+  /* verification list — a count alone doesn't tell you we got the right shows */
+  .peek { border: 1px solid var(--line); border-radius: 10px; margin-top: 12px; overflow: hidden; }
+  .peek table { margin: 0; font-size: .85rem; }
+  .peek td { padding: 7px 12px; }
+  .peek tr:last-child td { border-bottom: 0; }
+  .peek .more { color: var(--muted); font-style: italic; }
+  .peek .who { font-weight: 600; }
+  .peek .when { color: var(--muted); white-space: nowrap; font-family: var(--mono); font-size: .92em; }
+  .pager {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 10px; font-size: .88rem; color: var(--muted);
+  }
+  .pager button {
+    background: none; border: 1px solid var(--line); color: var(--ink);
+    border-radius: 7px; padding: 5px 13px; cursor: pointer; font-size: .88rem;
+  }
+  .pager button:disabled { opacity: .4; cursor: default; }
   pre.snippet {
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
     padding: 12px; font-family: var(--mono); font-size: .74rem;
@@ -328,6 +346,7 @@
       <details class="hidden" id="resultsDetails">
         <summary>See the full list, show by show</summary>
         <div class="scrollbox"><table id="results"></table></div>
+        <div class="pager" id="resultsPager"></div>
       </details>
       <button class="primary pulse hidden" id="toStep3">Continue — carry them over →</button>
       <br><button class="backlink" data-goto="1">← Back to your file</button>
@@ -339,7 +358,17 @@
     <div class="card">
       <h2>Carry them into What I've Heard</h2>
       <div class="readycount" id="readyCount">0 shows ready</div>
-      <p class="lead">One last move — pick the device you're on:</p>
+
+      <!-- People need to see that we got what they think we got, before they
+           carry anything anywhere. -->
+      <div id="readyPeek"></div>
+      <details id="readyDetails" class="hidden">
+        <summary id="readySummary">See every show that's coming across</summary>
+        <div class="scrollbox"><table id="readyTable"></table></div>
+        <div class="pager" id="readyPager"></div>
+      </details>
+
+      <p class="lead" style="margin-top:20px">One last move — pick the device you're on:</p>
       <details id="deskWay">
         <summary><b>On a computer</b> — a quick drag-and-drop</summary>
         <ol class="mini" style="margin-top:12px">
@@ -701,9 +730,20 @@ const PORTER_URL = location.origin + location.pathname;
 
 function caGrabberSource(user) {
   return `(function(){
-if(location.hostname.indexOf('concertarchives.org')===-1){alert('Open your Concert Archives page first, then click this again.');return;}
 var user=${JSON.stringify(user)}||location.pathname.split('/').filter(Boolean)[0];
 if(!user){alert('Concert Porter: could not work out your username from this page.');return;}
+function note(html,bad){
+  var d=document.createElement('div');
+  d.style.cssText='position:fixed;z-index:2147483647;top:14px;right:14px;max-width:340px;background:'+(bad?'#7a2016':'#8c1d2f')+';color:#fff;font:14px/1.45 -apple-system,Segoe UI,Helvetica,sans-serif;padding:13px 18px;border-radius:11px;box-shadow:0 6px 22px rgba(0,0,0,.35)';
+  d.innerHTML=html;document.body.appendChild(d);return d;
+}
+// A bookmarklet dies the moment the page navigates, so it can't travel and
+// then work. It can at least open the right page rather than tell you off.
+if(location.hostname.indexOf('concertarchives.org')===-1){
+  window.open('https://www.concertarchives.org/'+encodeURIComponent(user)+'/concerts','_blank');
+  note('<b>Concert Porter</b><br>Opened your Concert Archives page in a new tab.<br>Click <b>Grab my shows</b> again over there.');
+  return;
+}
 var out=[],page=1,MAX=200;
 function clean(s){return (s||'').replace(/\\s+/g,' ').trim();}
 function rowsFrom(doc){
@@ -720,10 +760,7 @@ function rowsFrom(doc){
   }
   return got;
 }
-var n=document.createElement('div');
-n.style.cssText='position:fixed;z-index:2147483647;top:14px;right:14px;max-width:320px;background:#8c1d2f;color:#fff;font:14px/1.45 -apple-system,Segoe UI,Helvetica,sans-serif;padding:13px 18px;border-radius:11px;box-shadow:0 6px 22px rgba(0,0,0,.35)';
-n.textContent='Concert Porter: starting…';
-document.body.appendChild(n);
+var n=note('Concert Porter: starting…');
 function fail(m){n.style.background='#7a2016';n.textContent='Concert Porter: '+m;}
 function b64(bytes){
   var s='';
@@ -1250,16 +1287,71 @@ function venueStr(c) {
   return [v.name, city.name, city.stateCode || city.state, (city.country||{}).code].filter(Boolean).join(', ');
 }
 
+/* ---------- paginated tables ----------
+   Hundreds of shows can't all go into the DOM at once, and nobody scrolls a
+   thousand rows anyway. One paginator serves both lists. */
+const PAGE_SIZE = 50;
+const pageAt = {};
+function renderPaged(tableId, pagerId, header, allRows) {
+  const total = allRows.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  let page = Math.min(pageAt[tableId] || 1, pages);
+  pageAt[tableId] = page;
+  const slice = allRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  $(tableId).innerHTML = header + slice.join('');
+  const pager = $(pagerId);
+  if (!pager) return;
+  if (pages <= 1) {
+    pager.innerHTML = total ? `<span>${total} show${total > 1 ? 's' : ''}</span>` : '';
+    return;
+  }
+  const from = (page - 1) * PAGE_SIZE + 1, to = Math.min(total, page * PAGE_SIZE);
+  pager.innerHTML =
+    `<button data-nav="prev"${page === 1 ? ' disabled' : ''}>← Previous</button>` +
+    `<span>${from}–${to} of ${total}</span>` +
+    `<button data-nav="next"${page === pages ? ' disabled' : ''}>Next →</button>` +
+    `<span style="margin-left:auto">page ${page} of ${pages}</span>`;
+  pager.onclick = e => {
+    const nav = e.target.getAttribute && e.target.getAttribute('data-nav');
+    if (!nav) return;
+    pageAt[tableId] = nav === 'prev' ? Math.max(1, page - 1) : Math.min(pages, page + 1);
+    renderPaged(tableId, pagerId, header, allRows);
+  };
+}
+
 function renderResults() {
-  const rowsHtml = matchResults.filter(r => r.status !== 'pending').map(r => {
+  const done = matchResults.filter(r => r.status !== 'pending');
+  const rowsHtml = done.map(r => {
     const tag = r.status === 'matched' ? '<span class="tag ok">found</span>'
               : r.status === 'ambiguous' ? '<span class="tag warn">your pick</span>'
               : '<span class="tag bad">not there</span>';
     const target = r.pick ? esc(venueStr(r.pick)) : '';
     return `<tr><td>${r.show.dateISO}</td><td>${esc(r.show.artist)}</td><td>${esc(r.show.venue)}</td><td>${tag}</td><td>${target}</td></tr>`;
-  }).join('');
-  $('results').innerHTML = `<tr><th>Date</th><th>Artist</th><th>Your venue</th><th></th><th>Matched to</th></tr>` + rowsHtml;
-  $('resultsDetails').classList.toggle('hidden', !rowsHtml);
+  });
+  renderPaged('results', 'resultsPager',
+    `<tr><th>Date</th><th>Artist</th><th>Your venue</th><th></th><th>Matched to</th></tr>`, rowsHtml);
+  $('resultsDetails').classList.toggle('hidden', !rowsHtml.length);
+}
+
+// What's actually going to be carried over, so it can be checked first.
+function renderReadyList() {
+  const going = matchResults.filter(r => r.status === 'matched' && r.pick);
+  if (!going.length) {
+    $('readyPeek').innerHTML = '';
+    $('readyDetails').classList.add('hidden');
+    return;
+  }
+  const PEEK = 6;
+  const line = r => `<tr><td class="when">${r.show.dateISO}</td><td class="who">${esc(r.show.artist)}</td><td>${esc(venueStr(r.pick))}</td></tr>`;
+  const peek = going.slice(0, PEEK).map(line).join('');
+  const rest = going.length - PEEK;
+  $('readyPeek').innerHTML = `<div class="peek"><table>${peek}` +
+    (rest > 0 ? `<tr><td colspan="3" class="more">…and ${rest} more — open the list below to check them all</td></tr>` : '') +
+    `</table></div>`;
+  $('readyDetails').classList.remove('hidden');
+  $('readySummary').textContent = `See every show that's coming across (${going.length})`;
+  renderPaged('readyTable', 'readyPager',
+    `<tr><th>Date</th><th>Artist</th><th>Where it matched</th></tr>`, going.map(line));
 }
 
 function renderAmbiguous() {
@@ -1324,7 +1416,17 @@ new Response(new Blob([by]).stream().pipeThrough(new DecompressionStream('gzip')
   .catch(function(){alert('Concert Porter: this browser could not unpack the list. On the Concert Porter page, open "Prefer another way?" and use the paste-in method instead.');});`
     : `go(${JSON.stringify(payload)});`;
   return `(function(){
-if(location.hostname.indexOf('whativeheard.com')===-1){alert('Open whativeheard.com first, then click this again.');return;}
+// Same constraint as the grabber: navigating kills the script, so the most
+// it can do is open the right page and wait to be clicked again there.
+if(location.hostname.indexOf('whativeheard.com')===-1){
+  window.open('https://whativeheard.com','_blank');
+  var d=document.createElement('div');
+  d.style.cssText='position:fixed;z-index:2147483647;top:14px;right:14px;max-width:340px;background:#8c1d2f;color:#fff;font:14px/1.45 -apple-system,Segoe UI,Helvetica,sans-serif;padding:13px 18px;border-radius:11px;box-shadow:0 6px 22px rgba(0,0,0,.35)';
+  d.innerHTML='<b>Concert Porter</b><br>Opened What I\\'ve Heard in a new tab.<br>Click <b>Import my shows</b> again over there.';
+  document.body.appendChild(d);
+  setTimeout(function(){d.remove();},9000);
+  return;
+}
 function go(P){
 var A='seen:attended:v1',T='seen:tickmeta:v1',R='seen:artists:v1',AD='seen:added:v1',RM='seen:removed:v1';
 function g(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
@@ -1392,6 +1494,7 @@ async function buildPayloadUI() {
   if (!nShows) return;
 
   $('readyCount').textContent = `✓ ${nShows} show${nShows > 1 ? 's' : ''} ready — ${nArtists} artist${nArtists > 1 ? 's' : ''}`;
+  renderReadyList();
   const seq = ++payloadSeq;
   const packed = await packPayload(payload);
   if (seq !== payloadSeq) return;   // a later rebuild overtook this one
